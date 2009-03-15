@@ -107,6 +107,7 @@ public class AESWriter
                writeBlock(b);
             }
          }
+         this.raf.close();
       }
    }
 
@@ -137,10 +138,8 @@ public class AESWriter
                this.raf.seek(this.curFP/BLOCKSIZE*BLOCKSIZE);
                this.raf.readFully(tmpBuf);
                this.dcipher.update(tmpBuf,0,BLOCKSIZE,tmpBuf);
-               System.out.println("Byte 5 = " + this.buffer[5]);
                for(int i = (int)(this.curFP % BLOCKSIZE); i < this.end % BLOCKSIZE; i++)
                {
-                  System.out.println("Filling in byte " + i + " from file");
                   buffer[i] = tmpBuf[i];
                }
             }
@@ -202,7 +201,6 @@ public class AESWriter
             for(int i = 0; i < iter; i++)
             {
                buffer[i] = tmpBuf[i]; 
-               System.out.println("copied " + buffer[i]);
             }
             this.bufferSize = iter;
          }else{
@@ -215,7 +213,6 @@ public class AESWriter
    public void write(byte[] b, int off, int len) throws java.io.IOException, javax.crypto.ShortBufferException
    {
       byte[] tmpBuf = null;
-      System.out.println("Writing " + len + " bytes at " + this.curFP + ". this.bufferSize = " + this.bufferSize);
 
       synchronized(this){
          if(this.bufferSize > 0)
@@ -227,7 +224,6 @@ public class AESWriter
             for(int i = this.bufferSize; i < BLOCKSIZE && i < off + len + negboff ; i++, 
                   this.bufferSize++){
                buffer[i] = b[off + i - negboff];
-               System.out.println("buffer[" + i + "]=" + buffer[i]);
 
             }
             if(this.bufferSize > BLOCKSIZE)
@@ -258,7 +254,6 @@ public class AESWriter
                {
                   for(int i = 0; i < remaining; i++){
                      this.buffer[i] = b[off + i + limit + filler];
-                     System.out.println("buffer[" + i + "]=" + buffer[i]);
                   }
                   this.bufferSize = remaining;
                }
@@ -471,13 +466,92 @@ public class AESWriter
          
          reader.read(t);
          
-         if(Arrays.equals(b,t))
+         if(Arrays.equals(b,t) && reader.length() == 32)
             System.out.println("006 PASSED");
          else
             System.out.println("006 FAILED");
 
          
       }
+      {
+         File f = new File("tests/007");
+         AESWriter aes = new AESWriter(f,key);
+         byte[] b = new byte[48];
+         byte[] t = new byte[48];
+         for(int i = 0; i < b.length; i++)
+         {
+            b[i] = (byte)i;
+         }
+         aes.write(b,0,17);
+         aes.write(b,17,48-17);
+         aes.close();
+
+         AESRandomAccessFile reader = new AESRandomAccessFile(f,"r",key);
+         
+         reader.read(t);
+         
+         if(Arrays.equals(b,t) && reader.length() == 48)
+            System.out.println("007 PASSED");
+         else
+            System.out.println("007 FAILED");
+
+
+         
+      }
+      {
+         for(int i = 1; i < 5000; i++){
+            byte[] b = new byte[i];
+            byte[] t = new byte[i];
+            File f = File.createTempFile("test","aes");
+            AESWriter aes = new AESWriter(f,key);
+            for(int j = 0; j < b.length; j++)
+               b[j] = (byte)j;
+            aes.write(b,0,i);
+            aes.close();
+
+            AESRandomAccessFile reader = new AESRandomAccessFile(f, "r", key);
+            if(reader.length() != i)
+               throw new RuntimeException("Test Failed");
+            reader.read(t);
+            for(int j =0; j < t.length; j++){
+               if(t[j] != (byte)j)
+                  throw new RuntimeException("Test Failed");
+
+            }
+            
+            reader.close();
+            f.delete();
+         }
+         System.out.println("008 passed");
+      }
+      {
+         for(int i = 1; i < 200; i++){
+            byte[] b = new byte[13*i];
+            byte[] t = new byte[13*i];
+            File f = File.createTempFile("test","aes");
+            AESWriter aes = new AESWriter(f,key);
+            for(int j = 0; j < b.length; j++)
+               b[j] = (byte)j;
+            for(int j = 1; j <= i; j++){
+               aes.write(b,0,j*13);
+            }
+            aes.close();
+
+            AESRandomAccessFile reader = new AESRandomAccessFile(f, "r", key);
+            if(reader.length() != 13*i)
+               throw new RuntimeException("Test Failed: Expected=" + (13*i) + " returned=" + reader.length());
+            reader.read(t);
+            for(int j =0; j < t.length; j++){
+               if(t[j] != (byte)j)
+                  throw new RuntimeException("Test Failed");
+
+            }
+            reader.close();
+            f.delete();
+         }
+         System.out.println("009 passed");
+      }
    }
+
 
 }
